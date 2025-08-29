@@ -14,17 +14,13 @@ import {
   Message,
   toaster,
   Checkbox,
-  Stack,
-  Toggle
+  Stack
 } from 'rsuite';
 import {
   usersListByFilter,
   createUser,
   updateUser,
-  deleteUser,
-  bulkUpsertUsers,
-  bulkUpdateUsers,
-  bulkDeleteUsers
+  deleteUser
 } from '../api';
 import './UserManager.css';
 
@@ -47,41 +43,21 @@ const UserManager = () => {
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showBulkModal, setShowBulkModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
   
-  // Form states
+  // Form states - User_In 모델에 맞춤
   const [createForm, setCreateForm] = useState({
     display_name: '',
     email: '',
-    picture_url: '',
-    is_active: true
+    picture_url: ''
   });
   
   const [editForm, setEditForm] = useState({});
-  const [bulkForm, setBulkForm] = useState({
-    action: 'update',
-    field: 'is_active',
-    value: true
-  });
 
   const searchColumnOptions = [
     { label: '표시명', value: 'display_name' },
-    { label: '이메일', value: 'email' },
-    { label: '활성상태', value: 'is_active' }
-  ];
-
-  const bulkActionOptions = [
-    { label: '일괄 수정', value: 'update' },
-    { label: '일괄 삭제', value: 'delete' }
-  ];
-
-  const fieldOptions = [
-    { label: '활성상태', value: 'is_active' },
-    { label: '표시명', value: 'display_name' },
-    { label: '이메일', value: 'email' },
-    { label: '프로필 이미지', value: 'picture_url' }
+    { label: '이메일', value: 'email' }
   ];
 
   // Load users
@@ -102,15 +78,16 @@ const UserManager = () => {
       
       if (data && data.items) {
         setUsers(data.items);
-        setTotal(data.total || data.items.length);
+        setTotal(data.meta?.total || data.items.length);
       } else {
         setUsers(data || []);
         setTotal(data?.length || 0);
       }
     } catch (error) {
+      console.error('Load users error:', error);
       toaster.push(
         <Message type="error" closable>
-          사용자 목록을 불러오는데 실패했습니다: {error.message}
+          사용자 목록을 불러오는데 실패했습니다: {error.response?.data?.detail || error.message}
         </Message>
       );
     } finally {
@@ -137,19 +114,27 @@ const UserManager = () => {
   // Handle create user
   const handleCreate = async () => {
     try {
-      await createUser(createForm);
+      // User_In 모델에 맞는 데이터만 전송
+      const userData = {
+        display_name: createForm.display_name,
+        email: createForm.email,
+        picture_url: createForm.picture_url || null
+      };
+      
+      await createUser(userData);
       toaster.push(
         <Message type="success" closable>
           사용자가 성공적으로 생성되었습니다.
         </Message>
       );
       setShowCreateModal(false);
-      setCreateForm({ display_name: '', email: '', picture_url: '', is_active: true });
+      setCreateForm({ display_name: '', email: '', picture_url: '' });
       loadUsers();
     } catch (error) {
+      console.error('Create user error:', error);
       toaster.push(
         <Message type="error" closable>
-          사용자 생성에 실패했습니다: {error.message}
+          사용자 생성에 실패했습니다: {error.response?.data?.detail || error.message}
         </Message>
       );
     }
@@ -158,7 +143,13 @@ const UserManager = () => {
   // Handle edit user
   const handleEdit = async () => {
     try {
-      await updateUser(editingUser.id, editForm);
+      // 수정할 필드만 전송 (id 제외)
+      const patchData = {};
+      if (editForm.display_name !== undefined) patchData.display_name = editForm.display_name;
+      if (editForm.email !== undefined) patchData.email = editForm.email;
+      if (editForm.picture_url !== undefined) patchData.picture_url = editForm.picture_url;
+      
+      await updateUser(editingUser.id, patchData);
       toaster.push(
         <Message type="success" closable>
           사용자가 성공적으로 수정되었습니다.
@@ -169,9 +160,10 @@ const UserManager = () => {
       setEditForm({});
       loadUsers();
     } catch (error) {
+      console.error('Update user error:', error);
       toaster.push(
         <Message type="error" closable>
-          사용자 수정에 실패했습니다: {error.message}
+          사용자 수정에 실패했습니다: {error.response?.data?.detail || error.message}
         </Message>
       );
     }
@@ -189,61 +181,24 @@ const UserManager = () => {
         );
         loadUsers();
       } catch (error) {
+        console.error('Delete user error:', error);
         toaster.push(
           <Message type="error" closable>
-            사용자 삭제에 실패했습니다: {error.message}
+            사용자 삭제에 실패했습니다: {error.response?.data?.detail || error.message}
           </Message>
         );
       }
-    }
-  };
-
-  // Handle bulk operations
-  const handleBulkOperation = async () => {
-    if (selectedUsers.length === 0) {
-      toaster.push(
-        <Message type="warning" closable>
-          선택된 사용자가 없습니다.
-        </Message>
-      );
-      return;
-    }
-
-    try {
-      if (bulkForm.action === 'update') {
-        const patch = { [bulkForm.field]: bulkForm.value };
-        await bulkUpdateUsers(selectedUsers, patch);
-        toaster.push(
-          <Message type="success" closable>
-            선택된 사용자들이 성공적으로 수정되었습니다.
-          </Message>
-        );
-      } else if (bulkForm.action === 'delete') {
-        if (window.confirm('정말로 선택된 사용자들을 삭제하시겠습니까?')) {
-          await bulkDeleteUsers(selectedUsers);
-          toaster.push(
-            <Message type="success" closable>
-              선택된 사용자들이 성공적으로 삭제되었습니다.
-            </Message>
-          );
-        }
-      }
-      setShowBulkModal(false);
-      setSelectedUsers([]);
-      loadUsers();
-    } catch (error) {
-      toaster.push(
-        <Message type="error" closable>
-          일괄 작업에 실패했습니다: {error.message}
-        </Message>
-      );
     }
   };
 
   // Open edit modal
   const openEditModal = (user) => {
     setEditingUser(user);
-    setEditForm({ ...user });
+    setEditForm({ 
+      display_name: user.display_name || '',
+      email: user.email || '',
+      picture_url: user.picture_url || ''
+    });
     setShowEditModal(true);
   };
 
@@ -298,14 +253,6 @@ const UserManager = () => {
             
             <Button appearance="primary" onClick={() => setShowCreateModal(true)}>
               새 사용자
-            </Button>
-            
-            <Button 
-              appearance="ghost" 
-              onClick={() => setShowBulkModal(true)}
-              disabled={selectedUsers.length === 0}
-            >
-              일괄 작업 ({selectedUsers.length})
             </Button>
           </Stack>
         </div>
@@ -424,20 +371,22 @@ const UserManager = () => {
         <Modal.Body>
           <Form fluid>
             <Form.Group>
-              <Form.ControlLabel>표시명</Form.ControlLabel>
+              <Form.ControlLabel>표시명 *</Form.ControlLabel>
               <Input
                 value={createForm.display_name}
                 onChange={(value) => setCreateForm(prev => ({ ...prev, display_name: value }))}
                 placeholder="사용자 표시명"
+                required
               />
             </Form.Group>
             <Form.Group>
-              <Form.ControlLabel>이메일</Form.ControlLabel>
+              <Form.ControlLabel>이메일 *</Form.ControlLabel>
               <Input
                 value={createForm.email}
                 onChange={(value) => setCreateForm(prev => ({ ...prev, email: value }))}
                 placeholder="이메일 주소"
                 type="email"
+                required
               />
             </Form.Group>
             <Form.Group>
@@ -447,17 +396,6 @@ const UserManager = () => {
                 onChange={(value) => setCreateForm(prev => ({ ...prev, picture_url: value }))}
                 placeholder="프로필 이미지 URL (선택사항)"
               />
-            </Form.Group>
-            <Form.Group>
-              <Form.ControlLabel>활성상태</Form.ControlLabel>
-              <Toggle
-                checked={createForm.is_active}
-                onChange={(checked) => setCreateForm(prev => ({ ...prev, is_active: checked }))}
-                size="md"
-              />
-              <span style={{ marginLeft: 10, color: '#666' }}>
-                {createForm.is_active ? '활성' : '비활성'}
-              </span>
             </Form.Group>
           </Form>
         </Modal.Body>
@@ -503,17 +441,6 @@ const UserManager = () => {
                 placeholder="프로필 이미지 URL (선택사항)"
               />
             </Form.Group>
-            <Form.Group>
-              <Form.ControlLabel>활성상태</Form.ControlLabel>
-              <Toggle
-                checked={editForm.is_active !== undefined ? editForm.is_active : true}
-                onChange={(checked) => setEditForm(prev => ({ ...prev, is_active: checked }))}
-                size="md"
-              />
-              <span style={{ marginLeft: 10, color: '#666' }}>
-                {editForm.is_active !== undefined ? editForm.is_active : true ? '활성' : '비활성'}
-              </span>
-            </Form.Group>
           </Form>
         </Modal.Body>
         <Modal.Footer>
@@ -521,68 +448,6 @@ const UserManager = () => {
             수정
           </Button>
           <Button appearance="ghost" onClick={() => setShowEditModal(false)}>
-            취소
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
-      {/* Bulk Operations Modal */}
-      <Modal open={showBulkModal} onClose={() => setShowBulkModal(false)}>
-        <Modal.Header>
-          <Modal.Title>일괄 작업</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form fluid>
-            <Form.Group>
-              <Form.ControlLabel>작업 유형</Form.ControlLabel>
-              <SelectPicker
-                data={bulkActionOptions}
-                value={bulkForm.action}
-                onChange={(value) => setBulkForm(prev => ({ ...prev, action: value }))}
-                style={{ width: '100%' }}
-              />
-            </Form.Group>
-            
-            {bulkForm.action === 'update' && (
-              <>
-                <Form.Group>
-                  <Form.ControlLabel>수정할 필드</Form.ControlLabel>
-                  <SelectPicker
-                    data={fieldOptions}
-                    value={bulkForm.field}
-                    onChange={(value) => setBulkForm(prev => ({ ...prev, field: value }))}
-                    style={{ width: '100%' }}
-                  />
-                </Form.Group>
-                <Form.Group>
-                  <Form.ControlLabel>새 값</Form.ControlLabel>
-                  {bulkForm.field === 'is_active' ? (
-                    <Toggle
-                      checked={bulkForm.value}
-                      onChange={(checked) => setBulkForm(prev => ({ ...prev, value: checked }))}
-                      size="md"
-                    />
-                  ) : (
-                    <Input
-                      value={bulkForm.value}
-                      onChange={(value) => setBulkForm(prev => ({ ...prev, value }))}
-                      placeholder="새 값을 입력하세요"
-                    />
-                  )}
-                </Form.Group>
-              </>
-            )}
-            
-            <div className="bulk-info-box">
-              <strong>선택된 사용자: {selectedUsers.length}명</strong>
-            </div>
-          </Form>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button appearance="primary" onClick={handleBulkOperation}>
-            {bulkForm.action === 'update' ? '일괄 수정' : '일괄 삭제'}
-          </Button>
-          <Button appearance="ghost" onClick={() => setShowBulkModal(false)}>
             취소
           </Button>
         </Modal.Footer>

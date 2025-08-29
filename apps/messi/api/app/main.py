@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
 from initserver import server
-from typing import List
+from typing import List, Dict, Any
 from settings import settings
 from utils.crud import factory as crud_factory
 from db import get_db
 from db.tables import User
 from utils.auth import get_current_user
-
+from db.models import User_In, User_Out
 app = server()
 
 # API endpoints
@@ -42,7 +42,7 @@ async def api_list_by_filter(
     body: dict,
     db: Session = Depends(get_db),
     user = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     filter_values = body.get("filter_values") or {}
     page = body.get("page", 1)
     page_size = body.get("page_size", 20)
@@ -59,27 +59,27 @@ async def create_user(data: dict, db: Session = Depends(get_db), user = Depends(
     return crud_factory(User, "create")(data, db, user)
 
 @app.get("/users/{id}")
-async def get_user(id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def get_user(id: int, db: Session = Depends(get_db), user = Depends(get_current_user)):
     return crud_factory(User, "get")(id, db, user)
 
 @app.patch("/users/{id}")
-async def update_user(id: str, patch: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def update_user(id: int, patch: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
     return crud_factory(User, "update")(id, patch, db, user)
 
 @app.delete("/users/{id}")
-async def delete_user(id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def delete_user(id: int, db: Session = Depends(get_db), user = Depends(get_current_user)):
     return crud_factory(User, "delete")(id, db, user)
 
 @app.post("/users/bulk/upsert")
-async def upsert_many(payload: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def upsert_many(payload: Dict[str, Any], db: Session = Depends(get_db), user = Depends(get_current_user)):
     rows = payload.get("rows") or []
     return crud_factory(User, "upsert_many_by_id")(rows, db, user)
 
 @app.post("/users/bulk/update")
-async def update_many(payload: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def update_many(payload: Dict[str, Any], db: Session = Depends(get_db), user = Depends(get_current_user)):
     return crud_factory(User, "update_many")(payload.get("ids") or [], payload.get("patch") or {}, db, user)
 
 @app.post("/users/bulk/delete")
-async def delete_many(payload: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def delete_many(payload: Dict[str, Any], db: Session = Depends(get_db), user = Depends(get_current_user)):
     return crud_factory(User, "delete_many")(payload.get("ids") or [], db, user)
 

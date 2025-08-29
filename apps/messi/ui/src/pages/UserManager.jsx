@@ -14,7 +14,8 @@ import {
   Message,
   toaster,
   Checkbox,
-  Stack
+  Stack,
+  Toggle
 } from 'rsuite';
 import {
   usersListByFilter,
@@ -38,7 +39,7 @@ const UserManager = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchColumns, setSearchColumns] = useState(['name', 'email']);
+  const [searchColumns, setSearchColumns] = useState(['display_name', 'email']);
   const [sortColumn, setSortColumn] = useState('');
   const [sortType, setSortType] = useState('');
   const [filterValues, setFilterValues] = useState({});
@@ -52,30 +53,23 @@ const UserManager = () => {
   
   // Form states
   const [createForm, setCreateForm] = useState({
-    name: '',
+    display_name: '',
     email: '',
-    level: 'N5'
+    picture_url: '',
+    is_active: true
   });
   
   const [editForm, setEditForm] = useState({});
   const [bulkForm, setBulkForm] = useState({
     action: 'update',
-    field: 'level',
-    value: 'N5'
+    field: 'is_active',
+    value: true
   });
 
-  const levels = [
-    { label: 'N5', value: 'N5' },
-    { label: 'N4', value: 'N4' },
-    { label: 'N3', value: 'N3' },
-    { label: 'N2', value: 'N2' },
-    { label: 'N1', value: 'N1' }
-  ];
-
   const searchColumnOptions = [
-    { label: '이름', value: 'name' },
+    { label: '표시명', value: 'display_name' },
     { label: '이메일', value: 'email' },
-    { label: '레벨', value: 'level' }
+    { label: '활성상태', value: 'is_active' }
   ];
 
   const bulkActionOptions = [
@@ -84,9 +78,10 @@ const UserManager = () => {
   ];
 
   const fieldOptions = [
-    { label: '레벨', value: 'level' },
-    { label: '이름', value: 'name' },
-    { label: '이메일', value: 'email' }
+    { label: '활성상태', value: 'is_active' },
+    { label: '표시명', value: 'display_name' },
+    { label: '이메일', value: 'email' },
+    { label: '프로필 이미지', value: 'picture_url' }
   ];
 
   // Load users
@@ -149,7 +144,7 @@ const UserManager = () => {
         </Message>
       );
       setShowCreateModal(false);
-      setCreateForm({ name: '', email: '', level: 'N5' });
+      setCreateForm({ display_name: '', email: '', picture_url: '', is_active: true });
       loadUsers();
     } catch (error) {
       toaster.push(
@@ -257,6 +252,12 @@ const UserManager = () => {
     setSelectedUsers(selectedRowKeys);
   };
 
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('ko-KR');
+  };
+
   return (
     <div className="user-manager-container">
       <Panel header="사용자 관리" bordered>
@@ -351,8 +352,8 @@ const UserManager = () => {
             </Column>
             
             <Column flexGrow={1} sortable>
-              <HeaderCell>이름</HeaderCell>
-              <Cell dataKey="name" />
+              <HeaderCell>표시명</HeaderCell>
+              <Cell dataKey="display_name" />
             </Column>
             
             <Column flexGrow={1} sortable>
@@ -360,9 +361,25 @@ const UserManager = () => {
               <Cell dataKey="email" />
             </Column>
             
-            <Column width={100} sortable>
-              <HeaderCell>레벨</HeaderCell>
-              <Cell dataKey="level" />
+            <Column width={120} sortable>
+              <HeaderCell>이메일 인증</HeaderCell>
+              <Cell>
+                {(rowData) => formatDate(rowData.email_verified_at)}
+              </Cell>
+            </Column>
+            
+            <Column width={100} align="center" sortable>
+              <HeaderCell>활성상태</HeaderCell>
+              <Cell>
+                {(rowData) => (
+                  <span style={{ 
+                    color: rowData.is_active ? '#28a745' : '#dc3545',
+                    fontWeight: 'bold'
+                  }}>
+                    {rowData.is_active ? '활성' : '비활성'}
+                  </span>
+                )}
+              </Cell>
             </Column>
             
             <Column width={150} align="center">
@@ -407,11 +424,11 @@ const UserManager = () => {
         <Modal.Body>
           <Form fluid>
             <Form.Group>
-              <Form.ControlLabel>이름</Form.ControlLabel>
+              <Form.ControlLabel>표시명</Form.ControlLabel>
               <Input
-                value={createForm.name}
-                onChange={(value) => setCreateForm(prev => ({ ...prev, name: value }))}
-                placeholder="사용자 이름"
+                value={createForm.display_name}
+                onChange={(value) => setCreateForm(prev => ({ ...prev, display_name: value }))}
+                placeholder="사용자 표시명"
               />
             </Form.Group>
             <Form.Group>
@@ -420,16 +437,27 @@ const UserManager = () => {
                 value={createForm.email}
                 onChange={(value) => setCreateForm(prev => ({ ...prev, email: value }))}
                 placeholder="이메일 주소"
+                type="email"
               />
             </Form.Group>
             <Form.Group>
-              <Form.ControlLabel>레벨</Form.ControlLabel>
-              <SelectPicker
-                data={levels}
-                value={createForm.level}
-                onChange={(value) => setCreateForm(prev => ({ ...prev, level: value }))}
-                style={{ width: '100%' }}
+              <Form.ControlLabel>프로필 이미지 URL</Form.ControlLabel>
+              <Input
+                value={createForm.picture_url}
+                onChange={(value) => setCreateForm(prev => ({ ...prev, picture_url: value }))}
+                placeholder="프로필 이미지 URL (선택사항)"
               />
+            </Form.Group>
+            <Form.Group>
+              <Form.ControlLabel>활성상태</Form.ControlLabel>
+              <Toggle
+                checked={createForm.is_active}
+                onChange={(checked) => setCreateForm(prev => ({ ...prev, is_active: checked }))}
+                size="md"
+              />
+              <span style={{ marginLeft: 10, color: '#666' }}>
+                {createForm.is_active ? '활성' : '비활성'}
+              </span>
             </Form.Group>
           </Form>
         </Modal.Body>
@@ -451,11 +479,11 @@ const UserManager = () => {
         <Modal.Body>
           <Form fluid>
             <Form.Group>
-              <Form.ControlLabel>이름</Form.ControlLabel>
+              <Form.ControlLabel>표시명</Form.ControlLabel>
               <Input
-                value={editForm.name || ''}
-                onChange={(value) => setEditForm(prev => ({ ...prev, name: value }))}
-                placeholder="사용자 이름"
+                value={editForm.display_name || ''}
+                onChange={(value) => setEditForm(prev => ({ ...prev, display_name: value }))}
+                placeholder="사용자 표시명"
               />
             </Form.Group>
             <Form.Group>
@@ -464,16 +492,27 @@ const UserManager = () => {
                 value={editForm.email || ''}
                 onChange={(value) => setEditForm(prev => ({ ...prev, email: value }))}
                 placeholder="이메일 주소"
+                type="email"
               />
             </Form.Group>
             <Form.Group>
-              <Form.ControlLabel>레벨</Form.ControlLabel>
-              <SelectPicker
-                data={levels}
-                value={editForm.level || 'N5'}
-                onChange={(value) => setEditForm(prev => ({ ...prev, level: value }))}
-                style={{ width: '100%' }}
+              <Form.ControlLabel>프로필 이미지 URL</Form.ControlLabel>
+              <Input
+                value={editForm.picture_url || ''}
+                onChange={(value) => setEditForm(prev => ({ ...prev, picture_url: value }))}
+                placeholder="프로필 이미지 URL (선택사항)"
               />
+            </Form.Group>
+            <Form.Group>
+              <Form.ControlLabel>활성상태</Form.ControlLabel>
+              <Toggle
+                checked={editForm.is_active !== undefined ? editForm.is_active : true}
+                onChange={(checked) => setEditForm(prev => ({ ...prev, is_active: checked }))}
+                size="md"
+              />
+              <span style={{ marginLeft: 10, color: '#666' }}>
+                {editForm.is_active !== undefined ? editForm.is_active : true ? '활성' : '비활성'}
+              </span>
             </Form.Group>
           </Form>
         </Modal.Body>
@@ -517,12 +556,11 @@ const UserManager = () => {
                 </Form.Group>
                 <Form.Group>
                   <Form.ControlLabel>새 값</Form.ControlLabel>
-                  {bulkForm.field === 'level' ? (
-                    <SelectPicker
-                      data={levels}
-                      value={bulkForm.value}
-                      onChange={(value) => setBulkForm(prev => ({ ...prev, value }))}
-                      style={{ width: '100%' }}
+                  {bulkForm.field === 'is_active' ? (
+                    <Toggle
+                      checked={bulkForm.value}
+                      onChange={(checked) => setBulkForm(prev => ({ ...prev, value: checked }))}
+                      size="md"
                     />
                   ) : (
                     <Input
@@ -554,3 +592,4 @@ const UserManager = () => {
 };
 
 export default UserManager;
+

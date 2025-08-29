@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings(BaseModel):
-    db_url: str = os.getenv("ONIGIRI_DB_URL", "") if os.getenv("ONIGIRI_DB_URL", "") else "sqlite:///./../../db.sqlite3"
+    db_url: str = os.getenv("APP_DB_URL", "") if os.getenv("APP_DB_URL", "") else "sqlite:///../db.sqlite3"
     
     google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
     google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")

@@ -55,34 +55,31 @@ async def api_list_by_filter(
     )
 
 @app.post("/users/")
-async def create_word(data: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def create_user(data: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
     return crud_factory(User, "create")(data, db, user)
 
 @app.get("/users/{id}")
-async def get_word(id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def get_user(id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
     return crud_factory(User, "get")(id, db, user)
 
 @app.patch("/users/{id}")
-async def update_word(id: str, patch: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def update_user(id: str, patch: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
     return crud_factory(User, "update")(id, patch, db, user)
 
 @app.delete("/users/{id}")
-async def delete_word(id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
+async def delete_user(id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
     return crud_factory(User, "delete")(id, db, user)
 
 @app.post("/users/bulk/upsert")
 async def upsert_many(payload: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
-    # payload: {"rows": [{"id":"...?", "word":"...", ...}, ...]}
     rows = payload.get("rows") or []
     return crud_factory(User, "upsert_many_by_id")(rows, db, user)
 
 @app.post("/users/bulk/update")
 async def update_many(payload: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
-    # payload: {"ids": ["...","..."], "patch": {"level":"N2"}}
     return crud_factory(User, "update_many")(payload.get("ids") or [], payload.get("patch") or {}, db, user)
 
 @app.post("/users/bulk/delete")
 async def delete_many(payload: dict, db: Session = Depends(get_db), user = Depends(get_current_user)):
-    # payload: {"ids": ["...","..."]}
     return crud_factory(User, "delete_many")(payload.get("ids") or [], db, user)
 

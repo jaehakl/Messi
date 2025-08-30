@@ -25,4 +25,7 @@ class Settings(BaseModel):
     S3_ENDPOINT_URL: str = os.getenv("S3_ENDPOINT_URL", "")
     MAX_IMAGE_SIZE_MB: int = 1
 
+    STATIC_DIR: str = os.getenv("STATIC_DIR", "")
+    STATIC_ROUTE: str = os.getenv("STATIC_ROUTE", "/static")
+    API_URL: str = os.getenv("API_URL", "http://localhost:8000")
 settings = Settings()

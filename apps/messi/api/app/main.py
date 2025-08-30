@@ -9,7 +9,9 @@ from utils.auth import get_current_user
 from db.models import UserData, FilterData
 from utils import crud
 
-from services.image import upload_images, get_image_url, delete_images
+#from services.image import upload_images, get_image_url, delete_images
+from services.image_static import upload_images, get_image_url, delete_images
+
 app = server()
 
 

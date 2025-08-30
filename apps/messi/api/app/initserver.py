@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db import Base, engine
 from dotenv import load_dotenv
+from fastapi.staticfiles import StaticFiles
+import os
 
 from settings import settings
 from oauth import router as auth_router
@@ -35,6 +37,10 @@ def server():
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
+    if settings.STATIC_DIR and settings.STATIC_DIR != "":
+        if not os.path.exists(settings.STATIC_DIR):
+            os.makedirs(settings.STATIC_DIR)
+        app.mount(settings.STATIC_ROUTE, StaticFiles(directory=settings.STATIC_DIR), name="static_files")
 
     async def start():
         app.state.progress = 0

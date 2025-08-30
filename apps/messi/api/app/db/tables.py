@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum, uuid
 from typing import Optional, List, Any
 from sqlalchemy import (MetaData, func,
-    Integer,text, String,Text,Boolean,DateTime,LargeBinary,JSON,
+    Integer,text, String,Text,Boolean,DateTime,LargeBinary,JSON,BigInteger,
     UniqueConstraint,CheckConstraint,ForeignKey,Index,)
 from sqlalchemy.orm import (DeclarativeBase,mapped_column,Mapped,relationship,)
 from sqlalchemy.dialects.postgresql import (UUID,JSONB,ARRAY,INET)
@@ -64,6 +64,22 @@ class TimestampMixin:
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+
+# ---------------------------------------------------------------------
+# Tables (App Layer)
+# ---------------------------------------------------------------------
+
+
+class ImageFile(TimestampMixin, Base):
+    __tablename__ = "image_files"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    tags: Mapped[str] = mapped_column(Text, nullable=False)
+    object_key: Mapped[str] = mapped_column(Text, nullable=False)
+    content_type: Mapped[str] = mapped_column(Text, nullable=True)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    user: Mapped["User"] = relationship("User", back_populates="image_files", lazy="selectin")
+
 # ---------------------------------------------------------------------
 # Tables (Auth Layer)
 # ---------------------------------------------------------------------
@@ -79,6 +95,7 @@ class User(TimestampMixin, Base):
     identities: Mapped[List["Identity"]] = relationship(back_populates="user", cascade="all, delete-orphan", lazy="selectin")
     sessions: Mapped[List["Session"]] = relationship(back_populates="user", cascade="all, delete-orphan", lazy="selectin")
     user_roles: Mapped[List["UserRole"]] = relationship(back_populates="user", cascade="all, delete-orphan", lazy="selectin")
+    image_files: Mapped[List["ImageFile"]] = relationship(back_populates="user", cascade="all, delete-orphan", lazy="selectin")
 
 
 class Identity(TimestampMixin, Base):

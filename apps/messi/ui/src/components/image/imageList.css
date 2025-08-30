@@ -1,0 +1,375 @@
+.image-list-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.image-list-container h2 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 30px;
+    font-size: 28px;
+    font-weight: 600;
+}
+
+/* 컨트롤 섹션 */
+.controls-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.filter-controls {
+    display: flex;
+    gap: 30px;
+    align-items: center;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.filter-group label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+.tag-input {
+    padding: 10px 12px;
+    border: 2px solid #e1e5e9;
+    border-radius: 6px;
+    font-size: 14px;
+    min-width: 200px;
+    transition: all 0.3s ease;
+}
+
+.tag-input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.sort-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.sort-btn {
+    padding: 8px 16px;
+    border: 2px solid #e1e5e9;
+    border-radius: 6px;
+    background: white;
+    color: #495057;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.sort-btn:hover {
+    border-color: #007bff;
+    color: #007bff;
+}
+
+.sort-btn.active {
+    background: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+
+/* 일괄 액션 */
+.batch-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.selected-count {
+    color: #495057;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.delete-selected-btn {
+    padding: 10px 20px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.delete-selected-btn:hover:not(:disabled) {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.delete-selected-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* 이미지 헤더 */
+.images-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 15px 0;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.select-all-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.select-all-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.select-all-section label {
+    font-weight: 500;
+    color: #495057;
+    cursor: pointer;
+}
+
+.total-count {
+    color: #6c757d;
+    font-size: 14px;
+}
+
+/* 이미지 그리드 */
+.images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.image-item {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 1px solid #e9ecef;
+    position: relative;
+}
+
+.image-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.image-checkbox {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+}
+
+.image-checkbox input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #007bff;
+}
+
+.image-content {
+    position: relative;
+}
+
+.image-thumbnail {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    display: block;
+}
+
+.image-info {
+    padding: 15px;
+    background: #f8f9fa;
+}
+
+.image-info > div {
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #495057;
+}
+
+.image-info > div:last-child {
+    margin-bottom: 0;
+}
+
+.image-id {
+    font-weight: 600;
+    color: #007bff;
+}
+
+.image-tags {
+    color: #6c757d;
+}
+
+.image-size, .image-date {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+/* 로딩 및 빈 상태 */
+.loading, .no-images {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6c757d;
+    font-size: 18px;
+}
+
+.loading {
+    color: #007bff;
+}
+
+/* 페이지네이션 */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 30px;
+}
+
+.page-btn {
+    padding: 10px 14px;
+    border: 2px solid #e1e5e9;
+    border-radius: 6px;
+    background: white;
+    color: #495057;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 44px;
+}
+
+.page-btn:hover:not(:disabled) {
+    border-color: #007bff;
+    color: #007bff;
+    background: #f8f9ff;
+}
+
+.page-btn.active {
+    background: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+
+.page-btn:disabled {
+    background: #f8f9fa;
+    color: #adb5bd;
+    cursor: not-allowed;
+    border-color: #e9ecef;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 1024px) {
+    .controls-section {
+        flex-direction: column;
+        gap: 20px;
+        align-items: stretch;
+    }
+    
+    .filter-controls {
+        flex-direction: column;
+        gap: 20px;
+        align-items: stretch;
+    }
+    
+    .tag-input {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .sort-buttons {
+        flex-wrap: wrap;
+    }
+    
+    .sort-btn {
+        flex: 1;
+        min-width: 120px;
+    }
+}
+
+@media (max-width: 768px) {
+    .image-list-container {
+        padding: 15px;
+    }
+    
+    .images-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+    }
+    
+    .pagination {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .page-btn {
+        padding: 8px 12px;
+        font-size: 13px;
+        min-width: 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .controls-section {
+        padding: 15px;
+    }
+    
+    .filter-controls {
+        gap: 15px;
+    }
+    
+    .sort-buttons {
+        flex-direction: column;
+    }
+    
+    .sort-btn {
+        width: 100%;
+    }
+    
+    .images-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .images-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+    
+    .select-all-section {
+        justify-content: center;
+    }
+    
+    .total-count {
+        text-align: center;
+    }
+}

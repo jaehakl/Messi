@@ -21,6 +21,7 @@ class Settings(BaseModel):
     AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
     AWS_REGION: str = os.getenv("AWS_REGION", "ap-northeast-2")
     S3_BUCKET: str = os.getenv("S3_BUCKET", "")
+    S3_BUCKET_DIRECTORY: str = os.getenv("S3_BUCKET_DIRECTORY", "messi")
     S3_ENDPOINT_URL: str = os.getenv("S3_ENDPOINT_URL", "")
     MAX_IMAGE_SIZE_MB: int = 1
 

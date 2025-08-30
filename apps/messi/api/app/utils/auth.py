@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, update, func
 
 from settings import settings
-from db import SessionLocal
+from db import SessionLocal, get_db
 from db.tables import User, Session as DbSession
-
+from db.models import UserData
 
 def random_urlsafe(nbytes: int = 32) -> str:
     return base64.urlsafe_b64encode(os.urandom(nbytes)).rstrip(b"=").decode("ascii")
@@ -52,30 +52,6 @@ def pop_return_to_cookie(resp: Response):
 
 
 
-
-
-
-
-# 공용 DB 의존성(이미 deps.py가 있다면 그걸 써도 됩니다)
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-class CurrentUser:
-    """
-    라우터에서 필요한 최소 정보만 담아 반환.
-    필요하면 pydantic BaseModel로 바꿔도 됩니다.
-    """
-    def __init__(self, id: str, email: str | None, display_name: str | None, picture_url: str | None, roles: list[str]):
-        self.id = id
-        self.email = email
-        self.display_name = display_name
-        self.picture_url = picture_url
-        self.roles = roles
-
 def _load_user_from_session_cookie(request: Request, db: Session) -> User:
     """
     routes_auth.py 의 /auth/me 와 동일한 규칙으로
@@ -113,7 +89,7 @@ def _load_user_from_session_cookie(request: Request, db: Session) -> User:
 def get_current_user(
     request: Request,
     db: Session = Depends(get_db),
-) -> CurrentUser | None:
+) -> UserData | None:
     """
     라우터에서 Depends(get_current_user) 로 사용.
     인증 실패 시 401을 던집니다.
@@ -128,7 +104,7 @@ def get_current_user(
     if hasattr(user, "user_roles") and user.user_roles:
         roles = [ur.role.name for ur in user.user_roles if hasattr(ur, "role") and ur.role]
 
-    return CurrentUser(
+    return UserData(
         id=str(user.id),
         email=user.email,
         display_name=getattr(user, "display_name", None),

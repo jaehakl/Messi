@@ -1,216 +1,218 @@
-# factory.py
-from fastapi import HTTPException
-from sqlalchemy import select, update as sa_update, delete as sa_delete, or_
+from typing import Dict, List, Optional, Tuple, Type, Any, Sequence
+from sqlalchemy import select, or_, and_, func, String, Text, inspect, delete
 from sqlalchemy.orm import Session
-from typing import Any, Callable
+from sqlalchemy.orm.decl_api import DeclarativeMeta
+from db.models import FilterData, UserData
+from sqlalchemy.dialects.postgresql import insert  # SQLite 3.35+도 insert 사용 가능 (SQLAlchemy가 변환)
 
-# ---- 유틸: 컬럼 접근/검증 ----
-def _get_col(model, name: str):
-    try:
-        col = getattr(model, name)
-    except AttributeError:
-        raise HTTPException(status_code=400, detail=f"Unknown column: {name}")
-    return col
 
-def _maybe_user_scope(stmt, model, user):
-    # 모델에 user_id 컬럼이 있으면 자동 스코프
-    if hasattr(model, "user_id") and user is not None:
-        return stmt.where(getattr(model, "user_id") == getattr(user, "id", user))
-    return stmt
 
-def _apply_filters(stmt, model, filt: dict[str, list[str]] | None):
-    """
-    filt 예시:
-      {
-        "level": ["N2","N3"],         # IN
-        "word__like": ["%走%"],       # LIKE
-        "created_at__gte": ["2025-01-01"],
-        "created_at__lte": ["2025-12-31"],
-        "count__gt": ["3"],
-      }
-    지원 연산자: eq(기본), in, like, ilike, gt, gte, lt, lte, ne
-    키 형식: 컬럼명__연산자
-    """
-    if not filt:
-        return stmt
-    ops_map = {
-        "eq": lambda c, v: c == v,
-        "ne": lambda c, v: c != v,
-        "like": lambda c, v: c.like(v),
-        "ilike": lambda c, v: c.ilike(v),
-        "gt": lambda c, v: c > v,
-        "gte": lambda c, v: c >= v,
-        "lt": lambda c, v: c < v,
-        "lte": lambda c, v: c <= v,
-        "in": lambda c, vs: c.in_(vs),
-    }
-    for raw_key, values in filt.items():
-        if not values:
-            continue
-        if "__" in raw_key:
-            col_name, op = raw_key.split("__", 1)
-        else:
-            col_name, op = raw_key, "in" if len(values) > 1 else "eq"
-        col = _get_col(model, col_name)
-        if op == "in":
-            stmt = stmt.where(ops_map[op](col, values))
-        else:
-            # 단일 값만 사용
-            stmt = stmt.where(ops_map[op](col, values[0]))
-    return stmt
+def generic_read(
+    Model: Type[DeclarativeMeta],
+    filter_data: FilterData,
+    db: Session,
+    user: Optional[UserData] = None,
+) -> Tuple[List[object], int]:
+    search_dict = filter_data.search_dict
+    combine = filter_data.combine
+    sort_column = filter_data.sort_column
+    sort_order = filter_data.sort_order
+    start = max(0, int(filter_data.start or 0))
+    limit = max(1, int(filter_data.limit or 1))
 
-def _apply_search(stmt, model, q: str | None, columns: list[str] | None):
-    if not q or not columns:
-        return stmt
-    conds = []
-    for name in columns:
-        col = _get_col(model, name)
-        conds.append(col.ilike(f"%{q}%"))
-    return stmt.where(or_(*conds))
+    dialect = db.bind.dialect.name if db.bind is not None else ""
 
-def _apply_sort(stmt, model, sort: str | None):
-    """
-    sort 예시: "created_at,-word"  (기본 오름차순, -는 내림차순)
-    """
-    if not sort:
-        return stmt
-    order_cols = []
-    for token in [s.strip() for s in sort.split(",") if s.strip()]:
-        desc = token.startswith("-")
-        name = token[1:] if desc else token
-        col = _get_col(model, name)
-        order_cols.append(col.desc() if desc else col.asc())
-    return stmt.order_by(*order_cols)
+    table_cols = {c.name: getattr(Model, c.name) for c in Model.__table__.columns}
+    # 문자열 컬럼만 검색 대상으로 허용 (보안 & 성능)
+    string_cols = {name for name, col in table_cols.items()
+                   if isinstance(col.type, (String, Text))}
 
-def _paginate(stmt, page: int, page_size: int):
-    page = max(1, int(page or 1))
-    page_size = max(1, min(200, int(page_size or 20)))
-    return stmt.offset((page - 1) * page_size).limit(page_size), page, page_size
+    # 1) WHERE 구성
+    column_groups = []  # 각 컬럼별 OR 묶음
+    if search_dict:
+        for col_name, words in search_dict.items():
+            if not words:
+                continue
+            if col_name not in table_cols or col_name not in string_cols:
+                # 존재하지 않거나 문자열 컬럼이 아니면 스킵 (화이트리스트)
+                continue
+            col = table_cols[col_name]
 
-# ---- 팩토리 본체 ----
-class CrudFactory:
-    def __init__(self, model):
-        self.model = model
-
-    # --- READ (단건) ---
-    def get(self, id: Any, db: Session, user=None):
-        stmt = select(self.model).where(_get_col(self.model, "id") == id)
-        stmt = _maybe_user_scope(stmt, self.model, user)
-        row = db.execute(stmt).scalar_one_or_none()
-        if not row:
-            raise HTTPException(status_code=404, detail="Not found")
-        return row
-
-    # --- LIST (필터/검색/정렬/페이지네이션) ---
-    def filtered_content(
-        self,
-        filter_values: dict[str, list[str]] | None,
-        db: Session,
-        user=None,
-        page: int = 1,
-        page_size: int = 20,
-        sort: str | None = None,
-        q: str | None = None,
-        search_columns: list[str] | None = None,
-    ):
-        base = select(self.model)
-        base = _maybe_user_scope(base, self.model, user)
-        base = _apply_filters(base, self.model, filter_values)
-        base = _apply_search(base, self.model, q, search_columns)
-        # total count
-        total = db.execute(base.with_only_columns(_get_col(self.model, "id"))).unique().all()
-        total_count = len(total)
-        # sort + paginate
-        stmt = _apply_sort(base, self.model, sort)
-        stmt, page, page_size = _paginate(stmt, page, page_size)
-        items = db.execute(stmt).scalars().all()
-        return {
-            "items": items,
-            "meta": {
-                "page": page,
-                "page_size": page_size,
-                "total": total_count,
-                "pages": (total_count + page_size - 1) // page_size if page_size else 1,
-            },
-        }
-
-    # --- CREATE (단건) ---
-    def create(self, data: dict, db: Session, user=None):
-        payload = dict(data)
-        if hasattr(self.model, "user_id") and user is not None and "user_id" not in payload:
-            payload["user_id"] = getattr(user, "id", user)
-        obj = self.model(**payload)
-        db.add(obj)
-        db.commit()
-        db.refresh(obj)
-        return obj
-
-    # --- UPDATE (단건) ---
-    def update(self, id: Any, data: dict, db: Session, user=None):
-        stmt = sa_update(self.model).where(_get_col(self.model, "id") == id)
-        stmt = _maybe_user_scope(stmt, self.model, user).values(**data).returning(self.model)
-        row = db.execute(stmt).scalar_one_or_none()
-        if not row:
-            db.rollback()
-            raise HTTPException(status_code=404, detail="Not found or forbidden")
-        db.commit()
-        return row
-
-    # --- DELETE (단건) ---
-    def delete(self, id: Any, db: Session, user=None):
-        stmt = sa_delete(self.model).where(_get_col(self.model, "id") == id)
-        stmt = _maybe_user_scope(stmt, self.model, user)
-        res = db.execute(stmt)
-        db.commit()
-        if res.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Not found or forbidden")
-        return {"ok": True, "deleted": res.rowcount}
-
-    # --- BULK: upsert-by-id(초간단), update-many, delete-many ---
-    def upsert_many_by_id(self, rows: list[dict], db: Session, user=None):
-        """
-        아주 단순한 upsert: payload에 id가 있으면 update, 없으면 insert.
-        (충돌키/복합키 upsert는 DB별 문법이 달라 여기선 생략)
-        """
-        created, updated = 0, 0
-        for r in rows:
-            r = dict(r)
-            rid = r.pop("id", None)
-            if hasattr(self.model, "user_id") and user is not None and "user_id" not in r:
-                r["user_id"] = getattr(user, "id", user)
-            if rid is None:
-                db.add(self.model(**r))
-                created += 1
+            # 같은 컬럼에 대해 단어들 OR
+            if dialect == "postgresql":
+                ors = [col.ilike(f"%{w}%") for w in words if w is not None and str(w) != ""]
             else:
-                stmt = sa_update(self.model).where(_get_col(self.model, "id") == rid)
-                stmt = _maybe_user_scope(stmt, self.model, user).values(**r)
-                res = db.execute(stmt)
-                updated += res.rowcount
-        db.commit()
-        return {"created": created, "updated": updated}
+                # 범용: LOWER(col) LIKE LOWER(:word)
+                ors = [func.lower(col).like(f"%{str(w).lower()}%")
+                       for w in words if w is not None and str(w) != ""]
+            if ors:
+                column_groups.append(or_(*ors))
 
-    def update_many(self, ids: list[Any], patch: dict, db: Session, user=None):
-        stmt = sa_update(self.model).where(_get_col(self.model, "id").in_(ids))
-        stmt = _maybe_user_scope(stmt, self.model, user).values(**patch)
-        res = db.execute(stmt)
-        db.commit()
-        return {"updated": res.rowcount}
+    where_clause = None
+    if column_groups:
+        if combine.lower() == "or":
+            where_clause = or_(*column_groups)
+        else:
+            where_clause = and_(*column_groups)
 
-    def delete_many(self, ids: list[Any], db: Session, user=None):
-        stmt = sa_delete(self.model).where(_get_col(self.model, "id").in_(ids))
-        stmt = _maybe_user_scope(stmt, self.model, user)
-        res = db.execute(stmt)
-        db.commit()
-        return {"deleted": res.rowcount}
+    # 2) 정렬 컬럼 확정 (없으면 PK → 없으면 첫 컬럼)
+    if sort_column and sort_column in table_cols:
+        sort_col = table_cols[sort_column]
+    else:
+        insp = inspect(Model)
+        if insp.primary_key:
+            sort_col = insp.primary_key[0]
+        else:
+            sort_col = list(Model.__table__.columns)[0]
 
+    order_expr = sort_col.desc() if sort_order == "desc" else sort_col.asc()
 
-# ---- 외부 노출: 메서드 한 개만 꺼내 쓰는 함수 팩 ----
-def factory(model, method: str) -> Callable:
+    # 3) 쿼리 구성
+    base = select(Model)
+    if where_clause is not None:
+        base = base.where(where_clause)
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    total = db.execute(count_stmt).scalar_one()
+
+    stmt = base.order_by(order_expr).offset(start).limit(limit)
+    rows = db.execute(stmt).scalars().all()
+    return rows, total
+
+def generic_upsert(
+    Model: Type[DeclarativeMeta],
+    data_list: List[Dict[str, Any]],
+    unique_column: Optional[str],
+    db: Session,
+    user: Optional[UserData] = None,
+) -> Dict[str, Any]:
     """
-    사용예:
-      factory(Word, method="filtered_content")(filter_values, db, user, page=1, page_size=50, sort="-created_at", q="走る", search_columns=["word","jp_pronunciation"])
+    DUPLICATE : user 소유의 데이터 중, unique_column 값이 중복되는 것이 있는 경우
+               (Model 에 user_id 가 없는 경우에는 전역 범위에서 중복 판정)
+    UPDATE : DUPLICATE 가 아니면서 user 소유의 데이터 중 id 값이 일치하는 것이 있는 경우
+    INSERT : DUPLICATE 가 아니면서 user 소유의 데이터 중 id 값이 일치하는 것이 없는 경우 
+             (id 값이 일치해도 타인 소유면 UPDATE 하지 않고 INSERT)
+             (id 값이 없는 경우에도 INSERT)    
     """
-    f = CrudFactory(model)
-    if not hasattr(f, method):
-        raise HTTPException(status_code=400, detail=f"Unknown method: {method}")
-    return getattr(f, method)
+    result = {"inserted": {}, "updated": {}, "duplicates": []}
+    if not data_list:
+        return result
+
+    # Model 컬럼 목록
+    col_names = {c.name for c in Model.__table__.columns}
+
+    # ---------- 중복 판정 준비 ----------
+    # 입력에서 unique 값 모으기
+    values = []
+    for data in data_list:
+        if unique_column in data and data[unique_column] is not None:
+            values.append(data[unique_column])
+
+    # 중복 범위: user가 주어지고, Model에 user_id가 있으면 user별로, 아니면 전역
+    scope_is_user = ("user_id" in col_names) and (user is not None) and getattr(user.__dict__, "id", None)
+
+    # 기존 DB에 있는 값들 한 번에 조회
+    uq_col = getattr(Model, unique_column)
+    stmt = select(Model).where(uq_col.in_(values))
+    if scope_is_user:
+        stmt = stmt.where(getattr(Model, "user_id") == user.id)
+
+    existing_rows = db.execute(stmt).scalars().all()
+    existing_map = {getattr(r, unique_column): r for r in existing_rows}
+    # 입력 내부 중복도 잡기 위한 seen 집합
+    seen_in_batch = set()
+
+    # 기존 데이터 ID 목록
+    total_ids = set(db.execute(select(Model.id)).scalars().all())
+    if scope_is_user:
+        total_ids = set(db.execute(select(Model.id).where(getattr(Model, "user_id") == user.id)).scalars().all())
+
+    # UPDATE 할 것, INSERT할 것, 중복으로 스킵할 것 분리
+    to_update = []
+    to_insert = []
+    for data in data_list:
+        if unique_column in data and data[unique_column] is not None:
+            v = data[unique_column]
+        else:
+            v = None
+        # unique 값이 비어있으면 중복 판단 불가 → 그냥 생성쪽으로 보냄(원한다면 여기서 스킵 규칙을 바꿀 수 있음)
+        if v is None:
+            if "id" in data:
+                if data["id"] in total_ids:
+                    to_update.append(data)
+                    continue
+            to_insert.append(data)
+            continue
+
+        # 전역/유저 범위 내 기존 존재 or 배치 내부에서 이미 본 값 → 중복
+        if (v in existing_map) or (v in seen_in_batch):
+            if "id" in data:
+                if data["id"] == existing_map[v].id:
+                    to_update.append(data)
+                    continue
+            result["duplicates"].append(data)
+            continue
+        # 유효: 생성
+        if "id" in data:
+            if data["id"] in total_ids:
+                to_update.append(data)
+                seen_in_batch.add(v)
+                continue
+
+        to_insert.append(data)
+        seen_in_batch.add(v)
+        continue
+
+
+    # ---------- UPDATE ----------
+    for data in to_update:
+        row = db.query(Model).filter(Model.id == data["id"]).first()
+        if row:
+            for key, value in data.items():
+                if key != "id":
+                    if key in Model.__table__.columns:
+                        setattr(row, key, value)
+        result["updated"][data["id"]] = row
+    db.commit()
+
+    # ---------- INSERT ----------
+    if scope_is_user:
+        for data in to_insert:
+            data.setdefault("user_id", user.id)
+
+    objs = []
+    for data in to_insert:
+        if "id" in data:
+            del data["id"]
+        objs.append(Model(**data))
+    if objs:
+        db.add_all(objs)
+        db.commit()
+
+    # 직렬화
+    pk_name = next(iter(Model.__mapper__.primary_key)).name
+    for o in objs:
+        pk = getattr(o, pk_name)
+        result["inserted"][pk] = o
+    return result
+
+
+def generic_delete(
+    Model: Type[DeclarativeMeta],
+    ids: List[int],
+    db: Session,
+    user: Optional[UserData] = None,
+) -> Dict[str, Any]:
+    if not ids:
+        return {}
+    ids = set(str(id) for id in ids)
+    stmt = (
+        delete(Model)
+        .where(Model.id.in_(ids))
+        .returning(Model.id)
+    )
+    deleted_ids = set(db.execute(stmt).scalars().all())
+    db.commit()
+    return {id: ("deleted" if id in deleted_ids else "not found") for id in ids}
+
+

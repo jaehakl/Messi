@@ -5,7 +5,7 @@ from db import Base, engine
 from dotenv import load_dotenv
 
 from settings import settings
-#from routers.routes_auth import router as auth_router
+from oauth import router as auth_router
 #from routers.word_images import router as word_images_router
 
 
@@ -32,7 +32,7 @@ def server():
         CORSMiddleware,
         allow_credentials=True,
         allow_origins=origins,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
 
@@ -45,9 +45,10 @@ def server():
         #        conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
         #    except Exception:
         #        pass
-        Base.metadata.create_all(bind=engine)        
-        #app.include_router(auth_router)
-        #app.include_router(word_images_router)
+        Base.metadata.create_all(bind=engine)
+        if settings.google_client_id and settings.google_client_secret and settings.google_redirect_uri:            
+            app.include_router(auth_router)
+            print("Google OAuth is configured.")
 
         print("service is started.")
 
